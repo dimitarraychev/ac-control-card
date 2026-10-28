@@ -1,10 +1,10 @@
-/*!
+/*
  * AC Control Card
  * A modern climate card: mode-tinted glass surface with animated glow, status header,
  * optional runtime chip, optional −/+ temperature stepper and a sliding mode selector.
  */
 const TAG = "ac-control-card";
-const CARD_VERSION = "0.1.0-beta";
+const CARD_VERSION = "0.1.1-beta";
 
 const MODE_META = {
   heat: { icon: "mdi:fire", label: "Heat", rgb: "255,152,0" },
@@ -53,28 +53,49 @@ class AcControlCard extends HTMLElement {
         }
         .head { display: flex; align-items: center; gap: 12px; cursor: pointer; -webkit-tap-highlight-color: transparent; border-radius: 16px; }
         .head:focus-visible { outline: 2px solid rgb(var(--rgb)); outline-offset: 2px; }
+        
+        /* Restored original Mushroom-style icon proportions and negative offsets */
         .tile {
           flex: none; width: 48px; height: 48px; border-radius: 16px;
           display: flex; align-items: center; justify-content: center;
-          color: rgb(var(--rgb)); --mdc-icon-size: 28px;
+          color: rgb(var(--rgb));
           background: linear-gradient(135deg, rgba(var(--rgb), .38), rgba(var(--rgb), .12));
           box-shadow: inset 0 0 0 1px rgba(var(--rgb), .25);
           transition: color .3s, background .3s;
+          overflow: hidden;
         }
+        .tile ha-icon {
+          --icon-size: 65px;
+          display: flex;
+          margin: -18px 0px 0px -18px !important;
+        }
+
         .info { flex: 1; min-width: 0; line-height: 1.25; }
         .name { font-size: 15px; font-weight: 600; color: var(--primary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .sub { font-size: 12.5px; color: var(--secondary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        
+        /* Forced gray text color to #8E8E93 */
+        .sub { font-size: 12.5px; color: #8E8E93; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        
+        /* Vertically centered contents inside the runtime badge */
         .runtime {
-          flex: none; display: inline-flex; align-items: center; gap: 4px;
+          flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
           padding: 5px 10px 5px 8px; border-radius: 999px; font-size: 13.5px; font-weight: 600;
-          color: rgb(var(--rgb)); background: rgba(var(--rgb), .14); --mdc-icon-size: 18px;
+          color: rgb(var(--rgb)); background: rgba(var(--rgb), .14);
           font-variant-numeric: tabular-nums;
+          line-height: normal;
         }
+        .runtime ha-icon {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          --mdc-icon-size: 18px;
+        }
+
         .runtime[hidden], .temp[hidden] { display: none; }
         .temp { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
         .tbtn {
           all: unset; box-sizing: border-box; cursor: pointer; width: 44px; height: 44px; border-radius: 50%;
-          display: flex; align-items: center; justify-content: center; color: var(--secondary-text-color);
+          display: flex; align-items: center; justify-content: center; color: #8E8E93;
           --mdc-icon-size: 26px; transition: background .2s, color .2s, transform .1s; -webkit-tap-highlight-color: transparent;
         }
         .tbtn:hover { background: rgba(var(--rgb), .15); color: rgb(var(--rgb)); }
@@ -99,7 +120,7 @@ class AcControlCard extends HTMLElement {
         .mbtn {
           all: unset; box-sizing: border-box; position: relative; z-index: 1; cursor: pointer; height: 40px;
           display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
-          color: var(--secondary-text-color); --mdc-icon-size: 22px; border-radius: 12px;
+          color: #8E8E93; --mdc-icon-size: 22px; border-radius: 12px;
           transition: color .2s; -webkit-tap-highlight-color: transparent;
         }
         .mbtn span { font-size: 10.5px; font-weight: 600; line-height: 1; }
@@ -313,7 +334,6 @@ class AcControlCard extends HTMLElement {
     this._tunit.textContent = m.tempText ? m.tempUnit : "";
     this._down.disabled = this._up.disabled = m.tempDisabled;
 
-    // Mode buttons: rebuild only when the list changes, so the indicator can slide
     const modesKey = modes.join(",") + "|" + !!this._config.show_labels;
     if (modesKey !== this._modesKey) {
       this._modesKey = modesKey;
