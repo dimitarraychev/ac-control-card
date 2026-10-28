@@ -1,10 +1,9 @@
 /*
  * AC Control Card
- * A modern climate card: mode-tinted glass surface with animated glow, status header,
- * optional runtime chip, optional −/+ temperature stepper and a sliding mode selector.
+ * A modern climate card matching native Mushroom layout and styling.
  */
 const TAG = "ac-control-card";
-const CARD_VERSION = "0.1.1-beta";
+const CARD_VERSION = "0.1.2-beta";
 
 const MODE_META = {
   heat: { icon: "mdi:fire", label: "Heat", rgb: "255,152,0" },
@@ -54,15 +53,15 @@ class AcControlCard extends HTMLElement {
         .head { display: flex; align-items: center; gap: 12px; cursor: pointer; -webkit-tap-highlight-color: transparent; border-radius: 16px; }
         .head:focus-visible { outline: 2px solid rgb(var(--rgb)); outline-offset: 2px; }
         
-        /* Restored original Mushroom-style icon proportions and negative offsets */
+        /* Exact Mushroom card icon container styling matching your original template */
         .tile {
-          flex: none; width: 48px; height: 48px; border-radius: 16px;
+          flex: none; width: 40px; height: 40px; border-radius: 50%;
           display: flex; align-items: center; justify-content: center;
           color: rgb(var(--rgb));
-          background: linear-gradient(135deg, rgba(var(--rgb), .38), rgba(var(--rgb), .12));
-          box-shadow: inset 0 0 0 1px rgba(var(--rgb), .25);
-          transition: color .3s, background .3s;
+          background: rgba(var(--rgb), 0.2);
+          position: relative;
           overflow: hidden;
+          transition: color .3s, background .3s;
         }
         .tile ha-icon {
           --icon-size: 65px;
@@ -72,11 +71,8 @@ class AcControlCard extends HTMLElement {
 
         .info { flex: 1; min-width: 0; line-height: 1.25; }
         .name { font-size: 15px; font-weight: 600; color: var(--primary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        
-        /* Forced gray text color to #8E8E93 */
         .sub { font-size: 12.5px; color: #8E8E93; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         
-        /* Vertically centered contents inside the runtime badge */
         .runtime {
           flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
           padding: 5px 10px 5px 8px; border-radius: 999px; font-size: 13.5px; font-weight: 600;
@@ -130,7 +126,7 @@ class AcControlCard extends HTMLElement {
       </style>
       <ha-card>
         <div class="head" tabindex="0" role="button">
-          <div class="tile"></div>
+          <div class="tile"><ha-icon></ha-icon></div>
           <div class="info"><div class="name"></div><div class="sub"></div></div>
           <div class="runtime" hidden></div>
         </div>
@@ -144,7 +140,7 @@ class AcControlCard extends HTMLElement {
     const $ = (s) => this.shadowRoot.querySelector(s);
     this._card = $("ha-card");
     this._head = $(".head");
-    this._tile = $(".tile");
+    this._tile = $(".tile ha-icon");
     this._name = $(".name");
     this._sub = $(".sub");
     this._runtime = $(".runtime");
@@ -324,7 +320,7 @@ class AcControlCard extends HTMLElement {
     this._card.style.setProperty("--rgb", m.rgb);
     this._card.classList.toggle("off", m.isOff);
     this._card.classList.toggle("active", m.active);
-    this._tile.innerHTML = `<ha-icon icon="${esc(m.icon)}"></ha-icon>`;
+    this._tile.setAttribute("icon", m.icon);
     this._sub.textContent = m.sub;
     this._runtime.hidden = !m.runtime;
     this._runtime.innerHTML = m.runtime ? `<ha-icon icon="mdi:timer-outline"></ha-icon><span>${esc(m.runtime)}</span>` : "";
