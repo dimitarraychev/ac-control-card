@@ -55,18 +55,16 @@ class AcControlCard extends HTMLElement {
         
         /* Exact Mushroom card icon container styling matching your original template */
         .tile {
-          flex: none; width: 40px; height: 40px; border-radius: 50%;
+          flex: none; width: 65px; height: 65px; border-radius: 50%;
+          margin: -18px -4px 0 -18px;
           display: flex; align-items: center; justify-content: center;
           color: rgb(var(--rgb));
           background: rgba(var(--rgb), 0.2);
-          position: relative;
-          overflow: hidden;
           transition: color .3s, background .3s;
         }
         .tile ha-icon {
-          --icon-size: 65px;
+          --mdc-icon-size: 44px;
           display: flex;
-          margin: -18px 0px 0px -18px !important;
         }
 
         .info { flex: 1; min-width: 0; line-height: 1.25; }
