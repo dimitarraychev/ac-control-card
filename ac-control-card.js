@@ -5,7 +5,7 @@
  */
 const TAG = "ac-control-card";
 const EDITOR_TAG = "ac-control-card-editor";
-const CARD_VERSION = "0.3.4-beta";
+const CARD_VERSION = "0.3.5-beta";
 
 const MODE_META = {
   heat: { icon: "mdi:fire", label: "Heat", rgb: "255,152,0" },
@@ -157,7 +157,7 @@ class AcControlCard extends HTMLElement {
         .mbtn {
           all: unset; box-sizing: border-box; position: relative; z-index: 1; cursor: pointer; height: 40px;
           display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
-          color: var(--secondary-text-color); --mdc-icon-size: 22px; border-radius: 12px;
+          color: var(--secondary-text-color); --mdc-icon-size: 24px; border-radius: 12px;
           transition: color .2s; -webkit-tap-highlight-color: transparent;
         }
         .mbtn span { font-size: 10.5px; font-weight: 600; line-height: 1; }
