@@ -5,7 +5,7 @@
  */
 const TAG = "ac-control-card";
 const EDITOR_TAG = "ac-control-card-editor";
-const CARD_VERSION = "0.3.0-beta";
+const CARD_VERSION = "0.3.1-beta";
 
 const MODE_META = {
   heat: { icon: "mdi:fire", label: "Heat", rgb: "255,152,0" },
@@ -24,23 +24,17 @@ const MODE_ORDER = ["heat", "cool", "heat_cool", "auto", "dry", "fan_only", "off
 const DEFAULT_MODES = ["heat", "cool", "off"];
 const UNAVAILABLE = ["unavailable", "unknown"];
 
-// Section order (the card is a flex column, sections are re-ordered with CSS `order`)
-const SECTION_LABEL = { header: "Header", temp: "Temperature", modes: "Modes" };
-const LAYOUT_ORDERS = [
-  ["header", "temp", "modes"],
-  ["header", "modes", "temp"],
-  ["temp", "header", "modes"],
-  ["temp", "modes", "header"],
-  ["modes", "header", "temp"],
-  ["modes", "temp", "header"],
+// The header is always first. Only Temperature and Modes can swap places
+// (the card is a flex column, sections are re-ordered with CSS `order`).
+const LAYOUT_OPTIONS = [
+  { value: "temp_modes", label: "Temperature → Modes" },
+  { value: "modes_temp", label: "Modes → Temperature" },
 ];
-const DEFAULT_LAYOUT = LAYOUT_ORDERS[0].join("_");
-const LAYOUT_OPTIONS = LAYOUT_ORDERS.map((o) => ({ value: o.join("_"), label: o.map((x) => SECTION_LABEL[x]).join(" → ") }));
+const DEFAULT_LAYOUT = "temp_modes";
 const parseLayout = (v) => {
-  const o = typeof v === "string" ? v.split("_") : null;
-  return o && o.length === 3 && ["header", "temp", "modes"].every((x) => o.includes(x)) ? o : LAYOUT_ORDERS[0];
+  const o = String(v ?? "").split("_").filter((x) => x === "temp" || x === "modes");
+  return o.length === 2 && o[0] === "modes" ? ["modes", "temp"] : ["temp", "modes"];
 };
-
 const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const cap = (s) => String(s ?? "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
@@ -399,9 +393,9 @@ class AcControlCard extends HTMLElement {
     // layout toggles
     this._card.classList.toggle("bubble", bubble);
     this._card.classList.toggle("static", !animate);
-    this._head.style.order = order.indexOf("header");
-    this._temp.style.order = order.indexOf("temp");
-    this._track.style.order = order.indexOf("modes");
+    this._head.style.order = 0;
+    this._temp.style.order = 1 + order.indexOf("temp");
+    this._track.style.order = 1 + order.indexOf("modes");
     this._card.classList.toggle("solo-temp", !showHeader && !showModes && showTemp);
     this._head.hidden = !showHeader;
     this._temp.hidden = !showTemp;
@@ -532,7 +526,7 @@ const EDITOR_LABELS = {
   show_temperature_control: "Show − / + temperature control",
   show_modes: "Show mode buttons",
   hvac_modes: "Mode buttons",
-  layout: "Element order",
+  layout: "Order of temperature and modes",
   show_current: "Show current room temperature",
   show_labels: "Show labels under mode icons",
   tap_action: "Header tap action",
@@ -562,7 +556,6 @@ const getEditorSchema = (cfg) => {
   const showHeader = cfg.show_header !== false;
   const showModes = cfg.show_modes !== false;
   const showTemp = !!cfg.show_temperature_control;
-  const visible = [showHeader, showTemp, showModes].filter(Boolean).length;
   return [
     { name: "entity", required: true, selector: { entity: { domain: "climate" } } },
     { name: "name", selector: { text: {} } },
@@ -573,7 +566,7 @@ const getEditorSchema = (cfg) => {
     ...(showModes
       ? [{ name: "hvac_modes", selector: { select: { multiple: true, mode: "list", options: MODE_OPTIONS } } }]
       : []),
-    ...(visible > 1 ? [{ name: "layout", selector: { select: { mode: "dropdown", options: LAYOUT_OPTIONS } } }] : []),
+    ...(showTemp && showModes ? [{ name: "layout", selector: { select: { mode: "dropdown", options: LAYOUT_OPTIONS } } }] : []),
     { name: "show_current", selector: { boolean: {} } },
     ...(showModes ? [{ name: "show_labels", selector: { boolean: {} } }] : []),
     ...(showHeader ? [{ name: "tap_action", selector: { ui_action: {} } }] : []),
