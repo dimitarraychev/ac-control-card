@@ -65,7 +65,7 @@ tap_action:
 | `show_header` | `true` | Show header (icon, name, status line, runtime badge) |
 | `show_modes` | `true` | Show mode buttons selection bar |
 | `show_temperature_control` | `false` | Add −/+ temperature control row (debounced) |
-| `layout` | `header_temp_modes` | Order of elements (`header_temp_modes`, `header_modes_temp`, `temp_header_modes`, `temp_modes_header`, `modes_header_temp`, `modes_temp_header`) |
+| `layout` | `temp_modes` | Order of temperature and modes when both are active (`temp_modes` or `modes_temp`) |
 | `animation` | `true` | Enable active pulsing inner glow |
 | `coloring` | `true` | Enable mode-based colors and accent color overrides |
 | `hvac_modes` | `heat, cool, off` | Mode buttons in order (filtered to entity support) |
