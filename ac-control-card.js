@@ -5,7 +5,7 @@
  */
 const TAG = "ac-control-card";
 const EDITOR_TAG = "ac-control-card-editor";
-const CARD_VERSION = "0.2.5-beta";
+const CARD_VERSION = "0.3.0-beta";
 
 const MODE_META = {
   heat: { icon: "mdi:fire", label: "Heat", rgb: "255,152,0" },
@@ -23,6 +23,23 @@ const ACTION_LABEL = {
 const MODE_ORDER = ["heat", "cool", "heat_cool", "auto", "dry", "fan_only", "off"];
 const DEFAULT_MODES = ["heat", "cool", "off"];
 const UNAVAILABLE = ["unavailable", "unknown"];
+
+// Section order (the card is a flex column, sections are re-ordered with CSS `order`)
+const SECTION_LABEL = { header: "Header", temp: "Temperature", modes: "Modes" };
+const LAYOUT_ORDERS = [
+  ["header", "temp", "modes"],
+  ["header", "modes", "temp"],
+  ["temp", "header", "modes"],
+  ["temp", "modes", "header"],
+  ["modes", "header", "temp"],
+  ["modes", "temp", "header"],
+];
+const DEFAULT_LAYOUT = LAYOUT_ORDERS[0].join("_");
+const LAYOUT_OPTIONS = LAYOUT_ORDERS.map((o) => ({ value: o.join("_"), label: o.map((x) => SECTION_LABEL[x]).join(" → ") }));
+const parseLayout = (v) => {
+  const o = typeof v === "string" ? v.split("_") : null;
+  return o && o.length === 3 && ["header", "temp", "modes"].every((x) => o.includes(x)) ? o : LAYOUT_ORDERS[0];
+};
 
 const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -67,6 +84,7 @@ class AcControlCard extends HTMLElement {
         @media (prefers-reduced-motion: reduce) {
           ha-card.active { animation: none; box-shadow: inset 0 0 14px rgba(var(--rgb), .22); }
         }
+        ha-card.active.static { animation: none; box-shadow: inset 0 0 14px rgba(var(--rgb), .22); }
         ha-card.solo-temp { padding: 6px 10px; min-height: 64px; justify-content: center; }
 
         .head { display: flex; align-items: center; gap: 12px; cursor: pointer; -webkit-tap-highlight-color: transparent; border-radius: 16px; }
@@ -245,56 +263,6 @@ class AcControlCard extends HTMLElement {
     return { config: { type: `custom:${TAG}`, entity: entityId } };
   }
 
-  static getConfigForm() {
-    const modeOptions = MODE_ORDER.map((m) => ({ value: m, label: MODE_META[m].label }));
-    return {
-      schema: [
-        { name: "entity", required: true, selector: { entity: { domain: "climate" } } },
-        { name: "name", selector: { text: {} } },
-        { name: "icon", selector: { icon: {} } },
-        {
-          name: "card_style",
-          selector: {
-            select: {
-              mode: "dropdown",
-              options: [
-                { value: "mushroom", label: "Mushroom" },
-                { value: "bubble", label: "Bubble Card" },
-              ],
-            },
-          },
-        },
-        { name: "show_header", selector: { boolean: {} } },
-        { name: "show_modes", selector: { boolean: {} } },
-        { name: "show_temperature_control", selector: { boolean: {} } },
-        { name: "hvac_modes", selector: { select: { multiple: true, mode: "list", options: modeOptions } } },
-        { name: "duration_entity", selector: { entity: { domain: ["sensor", "input_number"] } } },
-        { name: "show_current", selector: { boolean: {} } },
-        { name: "show_labels", selector: { boolean: {} } },
-        { name: "step", selector: { number: { min: 0.1, max: 5, step: 0.1, mode: "box" } } },
-        { name: "color", selector: { text: {} } },
-        { name: "tap_action", selector: { ui_action: {} } },
-      ],
-      computeLabel: (s) =>
-        ({
-          entity: "Climate entity",
-          name: "Name",
-          icon: "Icon",
-          card_style: "Card style (icon, icon box and borders)",
-          show_header: "Show header (icon, name, status, runtime)",
-          show_modes: "Show mode buttons",
-          show_temperature_control: "Show − / + temperature control",
-          hvac_modes: "Mode buttons (in order; empty = Heat, Cool, Off)",
-          duration_entity: "Runtime sensor in minutes (optional)",
-          show_current: "Show current room temperature",
-          show_labels: "Show labels under mode icons",
-          step: "Temperature step (default: entity step or 1)",
-          color: "Accent color override (e.g. #2196f3)",
-          tap_action: "Header tap action",
-        }[s.name] || s.name),
-    };
-  }
-
   setConfig(config) {
     if (!config || !config.entity) throw new Error("You need to define a climate entity");
     this._config = {
@@ -400,7 +368,7 @@ class AcControlCard extends HTMLElement {
       icon: cfg.icon || "mdi:air-conditioner",
       sub,
       tsub: tparts.join(" · "),
-      rgb: isOff ? MODE_META.off.rgb : override || meta.rgb,
+      rgb: cfg.coloring === false || isOff ? MODE_META.off.rgb : override || meta.rgb,
       isOff,
       active,
       mode,
@@ -422,12 +390,18 @@ class AcControlCard extends HTMLElement {
     const showModes = cfg.show_modes !== false;
     const showTemp = !!cfg.show_temperature_control;
     const bubble = cfg.card_style === "bubble";
-    const key = JSON.stringify([m, modes, !!cfg.show_labels, showHeader, showModes, showTemp, bubble]);
+    const animate = cfg.animation !== false;
+    const order = parseLayout(cfg.layout);
+    const key = JSON.stringify([m, modes, !!cfg.show_labels, showHeader, showModes, showTemp, bubble, animate, order]);
     if (key === this._key) return;
     this._key = key;
 
     // layout toggles
     this._card.classList.toggle("bubble", bubble);
+    this._card.classList.toggle("static", !animate);
+    this._head.style.order = order.indexOf("header");
+    this._temp.style.order = order.indexOf("temp");
+    this._track.style.order = order.indexOf("modes");
     this._card.classList.toggle("solo-temp", !showHeader && !showModes && showTemp);
     this._head.hidden = !showHeader;
     this._temp.hidden = !showTemp;
@@ -548,44 +522,136 @@ class AcControlCard extends HTMLElement {
 }
 
 // ---------- Visual editor ----------
-// Merges the card's defaults into the form data so toggles that default to
-// "on" (header, modes) are shown as on in the editor.
+const MODE_OPTIONS = MODE_ORDER.map((m) => ({ value: m, label: MODE_META[m].label }));
+
+const EDITOR_LABELS = {
+  entity: "Climate entity",
+  name: "Name",
+  icon: "Icon",
+  show_header: "Show header (icon, name, status, runtime)",
+  show_temperature_control: "Show − / + temperature control",
+  show_modes: "Show mode buttons",
+  hvac_modes: "Mode buttons",
+  layout: "Element order",
+  show_current: "Show current room temperature",
+  show_labels: "Show labels under mode icons",
+  tap_action: "Header tap action",
+  card_style: "Card style (icon, icon box and borders)",
+  duration_entity: "Runtime sensor in minutes (optional)",
+  step: "Temperature step (default: entity step or 1)",
+  color: "Accent color override (e.g. #2196f3)",
+  animation: "Glow animation",
+  coloring: "Mode coloring",
+};
+
+// Values the card uses when a key is missing. The editor shows these and
+// never writes them into the YAML.
+const EDITOR_DEFAULTS = {
+  show_header: true,
+  show_modes: true,
+  show_temperature_control: false,
+  show_current: false,
+  show_labels: false,
+  card_style: "mushroom",
+  layout: DEFAULT_LAYOUT,
+  animation: true,
+  coloring: true,
+};
+
+const getEditorSchema = (cfg) => {
+  const showHeader = cfg.show_header !== false;
+  const showModes = cfg.show_modes !== false;
+  const showTemp = !!cfg.show_temperature_control;
+  const visible = [showHeader, showTemp, showModes].filter(Boolean).length;
+  return [
+    { name: "entity", required: true, selector: { entity: { domain: "climate" } } },
+    { name: "name", selector: { text: {} } },
+    { name: "icon", selector: { icon: {} } },
+    { name: "show_header", selector: { boolean: {} } },
+    { name: "show_temperature_control", selector: { boolean: {} } },
+    { name: "show_modes", selector: { boolean: {} } },
+    ...(showModes
+      ? [{ name: "hvac_modes", selector: { select: { multiple: true, mode: "list", options: MODE_OPTIONS } } }]
+      : []),
+    ...(visible > 1 ? [{ name: "layout", selector: { select: { mode: "dropdown", options: LAYOUT_OPTIONS } } }] : []),
+    { name: "show_current", selector: { boolean: {} } },
+    ...(showModes ? [{ name: "show_labels", selector: { boolean: {} } }] : []),
+    ...(showHeader ? [{ name: "tap_action", selector: { ui_action: {} } }] : []),
+    {
+      type: "expandable",
+      name: "advanced",
+      title: "Advanced settings",
+      flatten: true,
+      schema: [
+        {
+          name: "card_style",
+          selector: {
+            select: {
+              mode: "dropdown",
+              options: [
+                { value: "mushroom", label: "Mushroom" },
+                { value: "bubble", label: "Bubble Card" },
+              ],
+            },
+          },
+        },
+        { name: "duration_entity", selector: { entity: { domain: ["sensor", "input_number"] } } },
+        { name: "step", selector: { number: { min: 0.1, max: 5, step: 0.1, mode: "box" } } },
+        { name: "color", selector: { text: {} } },
+        { name: "animation", selector: { boolean: {} } },
+        { name: "coloring", selector: { boolean: {} } },
+      ],
+    },
+  ];
+};
+
+// The editor merges the card's defaults into the form data so toggles that
+// default to "on" are shown as on, and the default modes are pre-selected.
 class AcControlCardEditor extends HTMLElement {
   setConfig(config) {
     this._config = config;
-    this._update();
+    this._sync();
   }
 
   set hass(hass) {
     this._hass = hass;
-    this._update();
+    if (this._form) this._form.hass = hass;
+    else this._sync();
   }
 
-  _update() {
+  _sync() {
     if (!this._config || !this._hass) return;
     if (!this._form) {
-      const { schema, computeLabel } = AcControlCard.getConfigForm();
       this._form = document.createElement("ha-form");
-      this._form.schema = schema;
-      this._form.computeLabel = computeLabel;
+      this._form.computeLabel = (s) => EDITOR_LABELS[s.name] || s.name;
       this._form.addEventListener("value-changed", (ev) => {
         ev.stopPropagation();
         const config = { ...this._config, ...ev.detail.value };
         // don't write default values into the YAML
-        if (config.show_header === true) delete config.show_header;
-        if (config.show_modes === true) delete config.show_modes;
-        if (config.card_style === "mushroom") delete config.card_style;
-        if (config.show_temperature_control === false) delete config.show_temperature_control;
+        for (const [k, v] of Object.entries(EDITOR_DEFAULTS)) if (config[k] === v) delete config[k];
+        if (!Array.isArray(config.hvac_modes) || config.hvac_modes.length === 0 || config.hvac_modes.join(",") === DEFAULT_MODES.join(",")) {
+          delete config.hvac_modes;
+        }
         for (const k of Object.keys(config)) {
           const v = config[k];
-          if (v === "" || v == null || (Array.isArray(v) && v.length === 0)) delete config[k];
+          if (v === "" || v == null) delete config[k];
         }
         this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
       });
       this.appendChild(this._form);
     }
     this._form.hass = this._hass;
-    this._form.data = { show_header: true, show_modes: true, card_style: "mushroom", ...this._config };
+
+    const cfg = this._config;
+    const schemaKey = JSON.stringify([cfg.show_header !== false, cfg.show_modes !== false, !!cfg.show_temperature_control]);
+    if (schemaKey !== this._schemaKey) {
+      this._schemaKey = schemaKey;
+      this._form.schema = getEditorSchema(cfg);
+    }
+
+    const data = { ...EDITOR_DEFAULTS, ...cfg };
+    if (!Array.isArray(data.hvac_modes) || data.hvac_modes.length === 0) data.hvac_modes = [...DEFAULT_MODES];
+    this._form.data = data;
   }
 }
 
