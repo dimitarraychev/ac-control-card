@@ -4,7 +4,7 @@
  * Each section can be toggled; styling can be Mushroom or Bubble.
  */
 const TAG = "ac-control-card";
-const CARD_VERSION = "0.2.0-beta";
+const CARD_VERSION = "0.2.1-beta";
 
 const MODE_META = {
   heat: { icon: "mdi:fire", label: "Heat", rgb: "255,152,0" },
