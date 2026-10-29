@@ -85,7 +85,7 @@ class AcControlCard extends HTMLElement {
 
         .info { flex: 1; min-width: 0; }
         .name {
-          font-size: 14px; font-weight: 700; line-height: 1.5;
+          font-size: 14px; font-weight: 500; line-height: 1.5;
           color: var(--primary-text-color);
           overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
