@@ -184,10 +184,13 @@ class AcControlCard extends HTMLElement {
         ha-card.bubble .ind { border-radius: 20px; }
         ha-card.bubble .mbtn { border-radius: 20px; }
         
-        /* ---------- Inset style: mushroom look, icon sits inside the card ---------- */
-        ha-card.inset { padding: 14px 16px; gap: 14px; }
-        ha-card.inset.solo-temp { padding: 6px 10px; }
-        ha-card.inset .tile { margin: 0; }
+        /* ---------- Mushroom style (formerly inset) ---------- */
+        ha-card.mushroom { padding: 14px 16px; gap: 14px; }
+        ha-card.mushroom.solo-temp { padding: 6px 10px; }
+        ha-card.mushroom .tile { margin: 0; }
+
+        /* ---------- Enhanced Mushroom style (formerly mushroom) ---------- */
+        /* (Inherits default ha-card negative margin tile positioning) */
       </style>
       <ha-card>
         <div class="head" tabindex="0" role="button">
@@ -395,7 +398,7 @@ class AcControlCard extends HTMLElement {
     const showHeader = cfg.show_header !== false;
     const showModes = cfg.show_modes !== false;
     const showTemp = !!cfg.show_temperature_control;
-    const cardStyle = ["bubble", "inset"].includes(cfg.card_style) ? cfg.card_style : "mushroom";
+    const cardStyle = ["bubble", "mushroom"].includes(cfg.card_style) ? cfg.card_style : "enhanced";
     const animate = cfg.animation !== false;
     const order = parseLayout(cfg.layout);
     const key = JSON.stringify([m, modes, !!cfg.show_labels, showHeader, showModes, showTemp, cardStyle, animate, order]);
@@ -404,7 +407,7 @@ class AcControlCard extends HTMLElement {
 
     // layout toggles
     this._card.classList.toggle("bubble", cardStyle === "bubble");
-    this._card.classList.toggle("inset", cardStyle === "inset");
+    this._card.classList.toggle("mushroom", cardStyle === "mushroom");
     this._card.classList.toggle("static", !animate);
     this._head.style.order = 0;
     this._temp.style.order = 1 + order.indexOf("temp");
@@ -561,7 +564,7 @@ const EDITOR_DEFAULTS = {
   show_temperature_control: false,
   show_current: false,
   show_labels: false,
-  card_style: "mushroom",
+  card_style: "enhanced",
   layout: DEFAULT_LAYOUT,
   animation: true,
   coloring: true,
@@ -595,8 +598,8 @@ const getEditorSchema = (cfg) => {
             select: {
               mode: "dropdown",
               options: [
-                { value: "mushroom", label: "Mushroom-like Enhanced" },
-                { value: "inset", label: "Mushroom-like" },
+                { value: "enhanced", label: "Mushroom-like Enhanced" },
+                { value: "mushroom", label: "Mushroom-like" },
                 { value: "bubble", label: "Bubble-like" },
               ],
             },
