@@ -5,7 +5,7 @@
  */
 const TAG = "ac-control-card";
 const EDITOR_TAG = "ac-control-card-editor";
-const CARD_VERSION = "0.3.1-beta";
+const CARD_VERSION = "0.3.2-beta";
 
 const MODE_META = {
   heat: { icon: "mdi:fire", label: "Heat", rgb: "255,152,0" },
@@ -14,7 +14,7 @@ const MODE_META = {
   fan_only: { icon: "mdi:fan", label: "Fan", rgb: "0,150,136" },
   auto: { icon: "mdi:thermostat-auto", label: "Auto", rgb: "156,39,176" },
   heat_cool: { icon: "mdi:sun-snowflake-variant", label: "Heat/Cool", rgb: "156,39,176" },
-  off: { icon: "mdi:power", label: "Off", rgb: "140,140,150" },
+  off: { icon: "mdi:power", label: "Off", rgb: "111,111,111" },
 };
 const ACTION_LABEL = {
   heating: "Heating", cooling: "Cooling", drying: "Drying", fan: "Fan", idle: "Idle",
