@@ -4,7 +4,8 @@
  * Each section can be toggled; styling can be Mushroom or Bubble.
  */
 const TAG = "ac-control-card";
-const CARD_VERSION = "0.2.4-beta";
+const EDITOR_TAG = "ac-control-card-editor";
+const CARD_VERSION = "0.2.5-beta";
 
 const MODE_META = {
   heat: { icon: "mdi:fire", label: "Heat", rgb: "255,152,0" },
@@ -225,6 +226,10 @@ class AcControlCard extends HTMLElement {
   }
 
   // ---------- HA integration ----------
+  static getConfigElement() {
+    return document.createElement(EDITOR_TAG);
+  }
+
   static getStubConfig(hass, entities, entitiesFallback) {
     const isClimate = (id) => typeof id === "string" && id.startsWith("climate.");
     const e =
@@ -290,7 +295,7 @@ class AcControlCard extends HTMLElement {
     };
   }
 
-setConfig(config) {
+  setConfig(config) {
     if (!config || !config.entity) throw new Error("You need to define a climate entity");
     this._config = {
       show_header: true,
@@ -542,7 +547,50 @@ setConfig(config) {
   }
 }
 
+// ---------- Visual editor ----------
+// Merges the card's defaults into the form data so toggles that default to
+// "on" (header, modes) are shown as on in the editor.
+class AcControlCardEditor extends HTMLElement {
+  setConfig(config) {
+    this._config = config;
+    this._update();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._update();
+  }
+
+  _update() {
+    if (!this._config || !this._hass) return;
+    if (!this._form) {
+      const { schema, computeLabel } = AcControlCard.getConfigForm();
+      this._form = document.createElement("ha-form");
+      this._form.schema = schema;
+      this._form.computeLabel = computeLabel;
+      this._form.addEventListener("value-changed", (ev) => {
+        ev.stopPropagation();
+        const config = { ...this._config, ...ev.detail.value };
+        // don't write default values into the YAML
+        if (config.show_header === true) delete config.show_header;
+        if (config.show_modes === true) delete config.show_modes;
+        if (config.card_style === "mushroom") delete config.card_style;
+        if (config.show_temperature_control === false) delete config.show_temperature_control;
+        for (const k of Object.keys(config)) {
+          const v = config[k];
+          if (v === "" || v == null || (Array.isArray(v) && v.length === 0)) delete config[k];
+        }
+        this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
+      });
+      this.appendChild(this._form);
+    }
+    this._form.hass = this._hass;
+    this._form.data = { show_header: true, show_modes: true, card_style: "mushroom", ...this._config };
+  }
+}
+
 if (!customElements.get(TAG)) customElements.define(TAG, AcControlCard);
+if (!customElements.get(EDITOR_TAG)) customElements.define(EDITOR_TAG, AcControlCardEditor);
 window.customCards = window.customCards || [];
 if (!window.customCards.some((c) => c.type === TAG)) {
   window.customCards.push({
