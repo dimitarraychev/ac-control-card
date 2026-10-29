@@ -290,9 +290,15 @@ class AcControlCard extends HTMLElement {
     };
   }
 
-  setConfig(config) {
+setConfig(config) {
     if (!config || !config.entity) throw new Error("You need to define a climate entity");
-    this._config = { tap_action: { action: "more-info" }, ...config };
+    this._config = {
+      show_header: true,
+      show_modes: true,
+      show_temperature_control: false,
+      tap_action: { action: "more-info" },
+      ...config,
+    };
     this._key = null;
     this._modesKey = null;
     if (this._hass) this._render();
