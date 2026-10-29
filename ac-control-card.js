@@ -4,7 +4,7 @@
  * Each section can be toggled; styling can be Mushroom or Bubble.
  */
 const TAG = "ac-control-card";
-const CARD_VERSION = "0.2.1-beta";
+const CARD_VERSION = "0.2.2-beta";
 
 const MODE_META = {
   heat: { icon: "mdi:fire", label: "Heat", rgb: "255,152,0" },
@@ -70,12 +70,13 @@ class AcControlCard extends HTMLElement {
 
         .head { display: flex; align-items: center; gap: 12px; cursor: pointer; -webkit-tap-highlight-color: transparent; border-radius: 16px; }
         .head[hidden] { display: none; }
-        .head:focus-visible { outline: 2px solid rgb(var(--rgb)); outline-offset: 2px; }
+        .head:focus, .head:focus-visible, .tbtn:focus, .mbtn:focus { outline: none; }
+        ha-card.kbd .head:focus-visible { outline: 2px solid rgb(var(--rgb)); outline-offset: 2px; }
 
         /* Mushroom-style icon container */
         .tile {
           flex: none; width: 65px; height: 65px; border-radius: 50%;
-          margin: -18px -4px 0 -18px;
+          margin: -18px -4px -18px -18px;
           display: flex; align-items: center; justify-content: center;
           color: rgb(var(--rgb));
           background: rgba(var(--rgb), 0.2);
@@ -85,7 +86,7 @@ class AcControlCard extends HTMLElement {
 
         .info { flex: 1; min-width: 0; }
         .name {
-          font-size: 14px; font-weight: 500; line-height: 1.5;
+          font-size: 14px; font-weight: 700; line-height: 1.5;
           color: var(--primary-text-color);
           overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
@@ -101,7 +102,8 @@ class AcControlCard extends HTMLElement {
           color: rgb(var(--rgb)); background: rgba(var(--rgb), .14);
           font-variant-numeric: tabular-nums; line-height: normal;
         }
-        .runtime ha-icon { display: flex; align-items: center; justify-content: center; --mdc-icon-size: 18px; }
+        .runtime ha-icon { display: flex; align-items: center; justify-content: center; --mdc-icon-size: 18px; width: 18px; height: 18px; }
+        .runtime span { display: block; line-height: 1; }
         .runtime[hidden], .temp[hidden], .tsub[hidden] { display: none; }
 
         .temp { display: flex; align-items: center; justify-content: space-between; }
@@ -112,7 +114,7 @@ class AcControlCard extends HTMLElement {
         }
         .tbtn:hover { background: rgba(var(--rgb), .15); color: rgb(var(--rgb)); }
         .tbtn:active { transform: scale(.9); }
-        .tbtn:focus-visible { outline: 2px solid rgb(var(--rgb)); }
+        ha-card.kbd .tbtn:focus-visible { outline: 2px solid rgb(var(--rgb)); }
         .tbtn[disabled] { opacity: .3; pointer-events: none; }
         .tcenter { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; user-select: none; }
         .tcenter.clickable { cursor: pointer; }
@@ -144,7 +146,7 @@ class AcControlCard extends HTMLElement {
         }
         .mbtn span { font-size: 10.5px; font-weight: 600; line-height: 1; }
         .mbtn.active { color: rgb(var(--rgb)); }
-        .mbtn:focus-visible { outline: 2px solid rgb(var(--rgb)); outline-offset: -2px; }
+        ha-card.kbd .mbtn:focus-visible { outline: 2px solid rgb(var(--rgb)); outline-offset: -2px; }
         .labels .mbtn { height: 52px; }
 
         /* ---------- Bubble Card style ---------- */
@@ -199,7 +201,12 @@ class AcControlCard extends HTMLElement {
     this._track = $(".track");
     this._seg = $(".seg");
 
-    this._head.addEventListener("click", () => this._onTap());
+    this._head.addEventListener("click", (e) => {
+      this._onTap();
+      if (e.detail) this._head.blur(); // pointer/touch click: don't keep focus
+    });
+    this.shadowRoot.addEventListener("pointerdown", () => this._card.classList.remove("kbd"), true);
+    this.shadowRoot.addEventListener("keydown", (e) => { if (e.key === "Tab") this._card.classList.add("kbd"); }, true);
     this._head.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this._onTap(); }
     });
