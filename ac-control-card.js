@@ -4,7 +4,7 @@
  * Each section can be toggled; styling can be Mushroom or Bubble.
  */
 const TAG = "ac-control-card";
-const CARD_VERSION = "0.2.2-beta";
+const CARD_VERSION = "0.2.3-beta";
 
 const MODE_META = {
   heat: { icon: "mdi:fire", label: "Heat", rgb: "255,152,0" },
@@ -76,7 +76,7 @@ class AcControlCard extends HTMLElement {
         /* Mushroom-style icon container */
         .tile {
           flex: none; width: 65px; height: 65px; border-radius: 50%;
-          margin: -18px -4px -18px -18px;
+          margin: -18px -4px 0 -18px;
           display: flex; align-items: center; justify-content: center;
           color: rgb(var(--rgb));
           background: rgba(var(--rgb), 0.2);
@@ -86,7 +86,7 @@ class AcControlCard extends HTMLElement {
 
         .info { flex: 1; min-width: 0; }
         .name {
-          font-size: 14px; font-weight: 700; line-height: 1.5;
+          font-size: 14px; font-weight: 500; line-height: 1.5;
           color: var(--primary-text-color);
           overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
