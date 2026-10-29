@@ -1,9 +1,10 @@
 /*
  * AC Control Card
- * A modern climate card matching native Mushroom layout and styling.
+ * Header, temperature stepper and mode selector in one card.
+ * Each section can be toggled; styling can be Mushroom or Bubble.
  */
 const TAG = "ac-control-card";
-const CARD_VERSION = "0.1.2-beta";
+const CARD_VERSION = "0.2.0-beta";
 
 const MODE_META = {
   heat: { icon: "mdi:fire", label: "Heat", rgb: "255,152,0" },
@@ -26,6 +27,20 @@ const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const cap = (s) => String(s ?? "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 
+// Accepts "#rgb", "#rrggbb", "r,g,b" or "rgb(r,g,b)" -> "r,g,b"
+const toRgb = (c) => {
+  if (typeof c !== "string") return null;
+  const s = c.trim();
+  const hex = s.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hex) {
+    let h = hex[1];
+    if (h.length === 3) h = h.split("").map((x) => x + x).join("");
+    return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)).join(",");
+  }
+  const m = s.match(/^(?:rgb\()?\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)?$/i);
+  return m ? `${m[1]},${m[2]},${m[3]}` : null;
+};
+
 class AcControlCard extends HTMLElement {
   constructor() {
     super();
@@ -36,6 +51,7 @@ class AcControlCard extends HTMLElement {
         ha-card {
           --rgb: 140,140,150;
           position: relative; overflow: hidden; box-sizing: border-box; padding: 12px;
+          display: flex; flex-direction: column; gap: 12px;
           background: rgba(var(--rgb), .06);
           border: 1px solid rgba(var(--rgb), .18);
           -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
@@ -50,10 +66,13 @@ class AcControlCard extends HTMLElement {
         @media (prefers-reduced-motion: reduce) {
           ha-card.active { animation: none; box-shadow: inset 0 0 14px rgba(var(--rgb), .22); }
         }
+        ha-card.solo-temp { padding: 6px 10px; min-height: 64px; justify-content: center; }
+
         .head { display: flex; align-items: center; gap: 12px; cursor: pointer; -webkit-tap-highlight-color: transparent; border-radius: 16px; }
+        .head[hidden] { display: none; }
         .head:focus-visible { outline: 2px solid rgb(var(--rgb)); outline-offset: 2px; }
-        
-        /* Exact Mushroom card icon container styling matching your original template */
+
+        /* Mushroom-style icon container */
         .tile {
           flex: none; width: 65px; height: 65px; border-radius: 50%;
           margin: -18px -4px 0 -18px;
@@ -62,46 +81,52 @@ class AcControlCard extends HTMLElement {
           background: rgba(var(--rgb), 0.2);
           transition: color .3s, background .3s;
         }
-        .tile ha-icon {
-          --mdc-icon-size: 44px;
-          display: flex;
+        .tile ha-icon { --mdc-icon-size: 44px; display: flex; }
+
+        .info { flex: 1; min-width: 0; }
+        .name {
+          font-size: 14px; font-weight: 700; line-height: 1.5;
+          color: var(--primary-text-color);
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .sub {
+          font-size: 12px; font-weight: 400; line-height: 1.5;
+          color: var(--secondary-text-color);
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
 
-        .info { flex: 1; min-width: 0; line-height: 1.25; }
-        .name { font-size: 15px; font-weight: 600; color: var(--primary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .sub { font-size: 12.5px; color: #8E8E93; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        
         .runtime {
           flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
           padding: 5px 10px 5px 8px; border-radius: 999px; font-size: 13.5px; font-weight: 600;
           color: rgb(var(--rgb)); background: rgba(var(--rgb), .14);
-          font-variant-numeric: tabular-nums;
-          line-height: normal;
+          font-variant-numeric: tabular-nums; line-height: normal;
         }
-        .runtime ha-icon {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          --mdc-icon-size: 18px;
-        }
+        .runtime ha-icon { display: flex; align-items: center; justify-content: center; --mdc-icon-size: 18px; }
+        .runtime[hidden], .temp[hidden], .tsub[hidden] { display: none; }
 
-        .runtime[hidden], .temp[hidden] { display: none; }
-        .temp { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+        .temp { display: flex; align-items: center; justify-content: space-between; }
         .tbtn {
           all: unset; box-sizing: border-box; cursor: pointer; width: 44px; height: 44px; border-radius: 50%;
-          display: flex; align-items: center; justify-content: center; color: #8E8E93;
+          display: flex; align-items: center; justify-content: center; color: var(--secondary-text-color);
           --mdc-icon-size: 26px; transition: background .2s, color .2s, transform .1s; -webkit-tap-highlight-color: transparent;
         }
         .tbtn:hover { background: rgba(var(--rgb), .15); color: rgb(var(--rgb)); }
         .tbtn:active { transform: scale(.9); }
         .tbtn:focus-visible { outline: 2px solid rgb(var(--rgb)); }
         .tbtn[disabled] { opacity: .3; pointer-events: none; }
+        .tcenter { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; user-select: none; }
+        .tcenter.clickable { cursor: pointer; }
         .tval { display: flex; align-items: flex-start; line-height: 1; color: var(--primary-text-color); font-variant-numeric: tabular-nums; }
         .tnum { font-size: 2.2rem; font-weight: 300; letter-spacing: -1px; }
         .tunit { font-size: 1rem; margin: 5px 0 0 3px; color: rgb(var(--rgb)); }
+        .tsub {
+          margin-top: 2px; font-size: .7rem; letter-spacing: .5px; text-transform: uppercase;
+          color: var(--secondary-text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+        }
         .off .tval { opacity: .5; }
+
         .track {
-          margin-top: 12px; padding: 4px; border-radius: 16px;
+          padding: 4px; border-radius: 16px;
           background: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
         }
         .seg { position: relative; display: grid; grid-template-columns: repeat(var(--n, 1), 1fr); }
@@ -114,13 +139,32 @@ class AcControlCard extends HTMLElement {
         .mbtn {
           all: unset; box-sizing: border-box; position: relative; z-index: 1; cursor: pointer; height: 40px;
           display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
-          color: #8E8E93; --mdc-icon-size: 22px; border-radius: 12px;
+          color: var(--secondary-text-color); --mdc-icon-size: 22px; border-radius: 12px;
           transition: color .2s; -webkit-tap-highlight-color: transparent;
         }
         .mbtn span { font-size: 10.5px; font-weight: 600; line-height: 1; }
         .mbtn.active { color: rgb(var(--rgb)); }
         .mbtn:focus-visible { outline: 2px solid rgb(var(--rgb)); outline-offset: -2px; }
         .labels .mbtn { height: 52px; }
+
+        /* ---------- Bubble Card style ---------- */
+        ha-card.bubble,
+        ha-card.bubble:not(.off) {
+          border: none; border-radius: 32px; padding: 8px; gap: 8px;
+          background: var(--ha-card-background, var(--card-background-color, rgba(30,30,30,1)));
+          -webkit-backdrop-filter: none; backdrop-filter: none;
+          animation: none; box-shadow: none;
+        }
+        ha-card.bubble.solo-temp { padding: 6px 10px; }
+        ha-card.bubble .head { gap: 12px; border-radius: 28px; }
+        ha-card.bubble .tile {
+          width: 40px; height: 40px; margin: 0 0 0 0;
+          background: rgba(var(--rgb), .2);
+        }
+        ha-card.bubble .tile ha-icon { --mdc-icon-size: 24px; }
+        ha-card.bubble .track { border-radius: 24px; }
+        ha-card.bubble .ind { border-radius: 20px; }
+        ha-card.bubble .mbtn { border-radius: 20px; }
       </style>
       <ha-card>
         <div class="head" tabindex="0" role="button">
@@ -130,7 +174,10 @@ class AcControlCard extends HTMLElement {
         </div>
         <div class="temp" hidden>
           <button class="tbtn" id="down" aria-label="Decrease temperature"><ha-icon icon="mdi:minus"></ha-icon></button>
-          <div class="tval"><span class="tnum"></span><span class="tunit"></span></div>
+          <div class="tcenter">
+            <div class="tval"><span class="tnum"></span><span class="tunit"></span></div>
+            <div class="tsub" hidden></div>
+          </div>
           <button class="tbtn" id="up" aria-label="Increase temperature"><ha-icon icon="mdi:plus"></ha-icon></button>
         </div>
         <div class="track"><div class="seg"></div></div>
@@ -143,8 +190,10 @@ class AcControlCard extends HTMLElement {
     this._sub = $(".sub");
     this._runtime = $(".runtime");
     this._temp = $(".temp");
+    this._tcenter = $(".tcenter");
     this._tnum = $(".tnum");
     this._tunit = $(".tunit");
+    this._tsub = $(".tsub");
     this._down = $("#down");
     this._up = $("#up");
     this._track = $(".track");
@@ -153,6 +202,12 @@ class AcControlCard extends HTMLElement {
     this._head.addEventListener("click", () => this._onTap());
     this._head.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); this._onTap(); }
+    });
+    // When the header is hidden, tapping the temperature opens more-info
+    this._tcenter.addEventListener("click", () => {
+      if (this._config?.show_header === false) {
+        this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: this._config.entity }, bubbles: true, composed: true }));
+      }
     });
     this._down.addEventListener("click", () => this._bump(-1));
     this._up.addEventListener("click", () => this._bump(1));
@@ -185,12 +240,27 @@ class AcControlCard extends HTMLElement {
         { name: "entity", required: true, selector: { entity: { domain: "climate" } } },
         { name: "name", selector: { text: {} } },
         { name: "icon", selector: { icon: {} } },
+        {
+          name: "card_style",
+          selector: {
+            select: {
+              mode: "dropdown",
+              options: [
+                { value: "mushroom", label: "Mushroom" },
+                { value: "bubble", label: "Bubble Card" },
+              ],
+            },
+          },
+        },
+        { name: "show_header", selector: { boolean: {} } },
+        { name: "show_modes", selector: { boolean: {} } },
+        { name: "show_temperature_control", selector: { boolean: {} } },
         { name: "hvac_modes", selector: { select: { multiple: true, mode: "list", options: modeOptions } } },
         { name: "duration_entity", selector: { entity: { domain: ["sensor", "input_number"] } } },
-        { name: "show_temperature_control", selector: { boolean: {} } },
         { name: "show_current", selector: { boolean: {} } },
         { name: "show_labels", selector: { boolean: {} } },
         { name: "step", selector: { number: { min: 0.1, max: 5, step: 0.1, mode: "box" } } },
+        { name: "color", selector: { text: {} } },
         { name: "tap_action", selector: { ui_action: {} } },
       ],
       computeLabel: (s) =>
@@ -198,12 +268,16 @@ class AcControlCard extends HTMLElement {
           entity: "Climate entity",
           name: "Name",
           icon: "Icon",
+          card_style: "Card style (icon, icon box and borders)",
+          show_header: "Show header (icon, name, status, runtime)",
+          show_modes: "Show mode buttons",
+          show_temperature_control: "Show − / + temperature control",
           hvac_modes: "Mode buttons (in order; empty = Heat, Cool, Off)",
           duration_entity: "Runtime sensor in minutes (optional)",
-          show_temperature_control: "Show − / + temperature control",
           show_current: "Show current room temperature",
           show_labels: "Show labels under mode icons",
           step: "Temperature step (default: entity step or 1)",
+          color: "Accent color override (e.g. #2196f3)",
           tap_action: "Header tap action",
         }[s.name] || s.name),
     };
@@ -222,8 +296,15 @@ class AcControlCard extends HTMLElement {
     this._render();
   }
 
-  getCardSize() { return this._config?.show_temperature_control ? 3 : 2; }
-  getGridOptions() { return { columns: 12, min_columns: 4 }; }
+  getCardSize() {
+    const c = this._config || {};
+    let n = 0;
+    if (c.show_header !== false) n += 1;
+    if (c.show_temperature_control) n += 1;
+    if (c.show_modes !== false) n += 1;
+    return Math.max(n, 1);
+  }
+  getGridOptions() { return { columns: 12, min_columns: 3 }; }
 
   // ---------- helpers ----------
   _state() { return this._hass?.states?.[this._config.entity]; }
@@ -287,11 +368,21 @@ class AcControlCard extends HTMLElement {
       sub = parts.join(" · ");
     }
 
+    // Caption under the number (used when the header is hidden)
+    const tparts = [];
+    if (cfg.name) tparts.push(cfg.name);
+    if (unavailable) tparts.push("Unavailable");
+    else if (isOff) tparts.push("Off");
+    else if (cfg.show_current && a.current_temperature != null) tparts.push(`Now ${a.current_temperature}°`);
+
+    const override = toRgb(cfg.color);
+
     return {
       name: cfg.name ?? a.friendly_name ?? cfg.entity,
       icon: cfg.icon || "mdi:air-conditioner",
       sub,
-      rgb: isOff ? MODE_META.off.rgb : meta.rgb,
+      tsub: tparts.join(" · "),
+      rgb: isOff ? MODE_META.off.rgb : override || meta.rgb,
       isOff,
       active,
       mode,
@@ -305,15 +396,34 @@ class AcControlCard extends HTMLElement {
   // ---------- render ----------
   _render() {
     if (!this._config || !this._hass) return;
+    const cfg = this._config;
     const st = this._state();
     const m = this._model();
     const modes = st ? this._modes(st) : [];
-    const key = JSON.stringify([m, modes, !!this._config.show_labels, !!this._config.show_temperature_control]);
+    const showHeader = cfg.show_header !== false;
+    const showModes = cfg.show_modes !== false;
+    const showTemp = !!cfg.show_temperature_control;
+    const bubble = cfg.card_style === "bubble";
+    const key = JSON.stringify([m, modes, !!cfg.show_labels, showHeader, showModes, showTemp, bubble]);
     if (key === this._key) return;
     this._key = key;
 
+    // layout toggles
+    this._card.classList.toggle("bubble", bubble);
+    this._card.classList.toggle("solo-temp", !showHeader && !showModes && showTemp);
+    this._head.hidden = !showHeader;
+    this._temp.hidden = !showTemp;
+    this._tcenter.classList.toggle("clickable", !showHeader);
+    this._tsub.hidden = showHeader;
+
     this._name.textContent = m.name;
-    if (m.missing) { this._sub.textContent = "Entity not found"; return; }
+    if (m.missing) {
+      this._sub.textContent = "Entity not found";
+      this._tsub.textContent = "Entity not found";
+      this._tsub.hidden = showHeader;
+      this._track.hidden = true;
+      return;
+    }
 
     this._card.style.setProperty("--rgb", m.rgb);
     this._card.classList.toggle("off", m.isOff);
@@ -321,24 +431,25 @@ class AcControlCard extends HTMLElement {
     this._tile.setAttribute("icon", m.icon);
     this._sub.textContent = m.sub;
     this._runtime.hidden = !m.runtime;
-    this._runtime.innerHTML = m.runtime ? `<ha-icon icon="mdi:timer-outline"></ha-icon><span>${esc(m.runtime)}</span>` : "";
+    this._runtime.innerHTML = m.runtime ? `<ha-icon icon="mdi:progress-clock"></ha-icon><span>${esc(m.runtime)}</span>` : "";
 
-    this._temp.hidden = !this._config.show_temperature_control;
     this._tnum.textContent = m.tempText ?? "--";
     this._tunit.textContent = m.tempText ? m.tempUnit : "";
+    this._tsub.textContent = m.tsub;
+    this._tsub.hidden = showHeader || !m.tsub;
     this._down.disabled = this._up.disabled = m.tempDisabled;
 
-    const modesKey = modes.join(",") + "|" + !!this._config.show_labels;
+    const modesKey = modes.join(",") + "|" + !!cfg.show_labels;
     if (modesKey !== this._modesKey) {
       this._modesKey = modesKey;
-      this._track.classList.toggle("labels", !!this._config.show_labels);
+      this._track.classList.toggle("labels", !!cfg.show_labels);
       this._seg.innerHTML =
         `<div class="ind"></div>` +
         modes
           .map((mo) => {
             const meta = MODE_META[mo] || { icon: "mdi:air-conditioner", label: cap(mo) };
             return `<button class="mbtn" data-mode="${esc(mo)}" title="${esc(meta.label)}" aria-label="${esc(meta.label)}">
-              <ha-icon icon="${esc(meta.icon)}"></ha-icon>${this._config.show_labels ? `<span>${esc(meta.label)}</span>` : ""}</button>`;
+              <ha-icon icon="${esc(meta.icon)}"></ha-icon>${cfg.show_labels ? `<span>${esc(meta.label)}</span>` : ""}</button>`;
           })
           .join("");
       this._seg.style.setProperty("--n", Math.max(modes.length, 1));
@@ -352,7 +463,7 @@ class AcControlCard extends HTMLElement {
       b.classList.toggle("active", on);
       b.setAttribute("aria-pressed", on ? "true" : "false");
     });
-    this._track.hidden = modes.length === 0;
+    this._track.hidden = !showModes || modes.length === 0;
   }
 
   // ---------- actions ----------
@@ -424,7 +535,7 @@ if (!window.customCards.some((c) => c.type === TAG)) {
   window.customCards.push({
     type: TAG,
     name: "AC Control Card",
-    description: "Modern climate card with mode-tinted glow, runtime chip, temperature stepper and sliding mode selector.",
+    description: "Climate card with optional header, temperature stepper and mode selector. Mushroom or Bubble styling.",
     preview: true,
     getEntitySuggestion: (hass, entityId) => AcControlCard.getEntitySuggestion(hass, entityId),
   });
