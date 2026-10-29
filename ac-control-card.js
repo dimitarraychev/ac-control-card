@@ -5,7 +5,7 @@
  */
 const TAG = "ac-control-card";
 const EDITOR_TAG = "ac-control-card-editor";
-const CARD_VERSION = "0.3.3-beta";
+const CARD_VERSION = "0.3.4-beta";
 
 const MODE_META = {
   heat: { icon: "mdi:fire", label: "Heat", rgb: "255,152,0" },
@@ -16,6 +16,9 @@ const MODE_META = {
   heat_cool: { icon: "mdi:sun-snowflake-variant", label: "Heat/Cool", rgb: "156,39,176" },
   off: { icon: "mdi:power", label: "Off", rgb: "111,111,111" },
 };
+// Header icon colour while the AC is off. Measured from the neighbouring
+// "off" cards (lamps ~75, Television / A1 Box ~86). Change it to taste.
+const OFF_ICON_RGB = "80,80,80";
 const ACTION_LABEL = {
   heating: "Heating", cooling: "Cooling", drying: "Drying", fan: "Fan", idle: "Idle",
   defrosting: "Defrosting", preheating: "Preheating", off: "Off",
@@ -91,7 +94,7 @@ class AcControlCard extends HTMLElement {
           flex: none; width: 65px; height: 65px; border-radius: 50%;
           margin: -18px -4px 0 -18px;
           display: flex; align-items: center; justify-content: center;
-          color: rgb(var(--rgb));
+          color: rgb(var(--icon-rgb, var(--rgb)));
           background: rgba(var(--rgb), 0.2);
           transition: color .3s, background .3s;
         }
@@ -348,12 +351,15 @@ class AcControlCard extends HTMLElement {
       sub = parts.join(" · ");
     }
 
-    // Caption under the number (used when the header is hidden)
+    // Caption under the number (used when the header is hidden).
+    // "Show current temperature and state" controls the Off / Now X° text.
     const tparts = [];
     if (cfg.name) tparts.push(cfg.name);
     if (unavailable) tparts.push("Unavailable");
-    else if (isOff) tparts.push("Off");
-    else if (cfg.show_current && a.current_temperature != null) tparts.push(`Now ${a.current_temperature}°`);
+    else if (cfg.show_current) {
+      if (isOff) tparts.push("Off");
+      else if (a.current_temperature != null) tparts.push(`Now ${a.current_temperature}°`);
+    }
 
     const override = toRgb(cfg.color);
 
@@ -363,6 +369,7 @@ class AcControlCard extends HTMLElement {
       sub,
       tsub: tparts.join(" · "),
       rgb: cfg.coloring === false || isOff ? MODE_META.off.rgb : override || meta.rgb,
+      iconRgb: isOff ? OFF_ICON_RGB : null,
       isOff,
       active,
       mode,
@@ -412,6 +419,8 @@ class AcControlCard extends HTMLElement {
     }
 
     this._card.style.setProperty("--rgb", m.rgb);
+    if (m.iconRgb) this._card.style.setProperty("--icon-rgb", m.iconRgb);
+    else this._card.style.removeProperty("--icon-rgb");
     this._card.classList.toggle("off", m.isOff);
     this._card.classList.toggle("active", m.active);
     this._tile.setAttribute("icon", m.icon);
@@ -527,7 +536,7 @@ const EDITOR_LABELS = {
   show_modes: "Show mode buttons",
   hvac_modes: "Mode buttons",
   layout: "Order of temperature and modes",
-  show_current: "Show current room temperature",
+  show_current: "Show current temperature and state",
   show_labels: "Show labels under mode icons",
   tap_action: "Header tap action",
   card_style: "Card style (icon, icon box and borders)",
@@ -567,8 +576,6 @@ const getEditorSchema = (cfg) => {
       ? [{ name: "hvac_modes", selector: { select: { multiple: true, mode: "list", options: MODE_OPTIONS } } }]
       : []),
     ...(showTemp && showModes ? [{ name: "layout", selector: { select: { mode: "dropdown", options: LAYOUT_OPTIONS } } }] : []),
-    { name: "show_current", selector: { boolean: {} } },
-    ...(showModes ? [{ name: "show_labels", selector: { boolean: {} } }] : []),
     ...(showHeader ? [{ name: "tap_action", selector: { ui_action: {} } }] : []),
     {
       type: "expandable",
@@ -591,6 +598,8 @@ const getEditorSchema = (cfg) => {
         { name: "duration_entity", selector: { entity: { domain: ["sensor", "input_number"] } } },
         { name: "step", selector: { number: { min: 0.1, max: 5, step: 0.1, mode: "box" } } },
         { name: "color", selector: { text: {} } },
+        { name: "show_current", selector: { boolean: {} } },
+        ...(showModes ? [{ name: "show_labels", selector: { boolean: {} } }] : []),
         { name: "animation", selector: { boolean: {} } },
         { name: "coloring", selector: { boolean: {} } },
       ],
