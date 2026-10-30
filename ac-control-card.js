@@ -5,7 +5,7 @@
  */
 const TAG = "ac-control-card";
 const EDITOR_TAG = "ac-control-card-editor";
-const CARD_VERSION = "0.4.4-beta";
+const CARD_VERSION = "0.4.5-beta";
 
 const MODE_META = {
   heat: { icon: "mdi:fire", label: "Heat", rgb: "255,152,0" },
@@ -367,7 +367,7 @@ class AcControlCard extends HTMLElement {
       icon: cfg.icon || "mdi:air-conditioner",
       sub,
       tsub: tparts.join(" · "),
-      rgb: cfg.coloring === false || isOff ? MODE_META.off.rgb : override || meta.rgb,
+      rgb: cfg.coloring === false ? "var(--ha-card-background, var(--card-background-color))" : (isOff ? MODE_META.off.rgb : override || meta.rgb),
       iconRgb: cfg.icon_coloring === false || isOff ? MODE_META.off.rgb : override || meta.rgb,
       isOff,
       active,
