@@ -5,7 +5,7 @@
  */
 const TAG = "ac-control-card";
 const EDITOR_TAG = "ac-control-card-editor";
-const CARD_VERSION = "0.4.1-beta";
+const CARD_VERSION = "0.4.2-beta";
 
 const MODE_META = {
   heat: { icon: "mdi:fire", label: "Heat", rgb: "255,152,0" },
@@ -66,11 +66,11 @@ class AcControlCard extends HTMLElement {
           position: relative; overflow: hidden; box-sizing: border-box; padding: 12px;
           display: flex; flex-direction: column; gap: 12px;
           background: rgba(var(--rgb), .06);
-          border: 1px solid rgba(var(--rgb), .18);
+          border: none;
           -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
-          transition: background .3s, border-color .3s;
+          transition: background .3s;
         }
-        ha-card:not(.off) { background: rgba(var(--rgb), .08); border-color: rgba(var(--rgb), .3); }
+        ha-card:not(.off) { background: rgba(var(--rgb), .08); }
         ha-card.active { animation: glow 3s ease-in-out infinite; }
         @keyframes glow {
           0%, 100% { box-shadow: inset 0 0 10px rgba(var(--rgb), .15); }
@@ -169,7 +169,6 @@ class AcControlCard extends HTMLElement {
           border: none; border-radius: 32px; padding: 8px; gap: 8px;
           background: var(--ha-card-background, var(--card-background-color, rgba(30,30,30,1)));
           -webkit-backdrop-filter: none; backdrop-filter: none;
-          animation: none; box-shadow: none;
         }
         ha-card.bubble.solo-temp { padding: 6px 10px; }
         ha-card.bubble .head { gap: 12px; border-radius: 28px; }
