@@ -5,7 +5,7 @@
  */
 const TAG = "ac-control-card";
 const EDITOR_TAG = "ac-control-card-editor";
-const CARD_VERSION = "0.4.2-beta";
+const CARD_VERSION = "0.4.3-beta";
 
 const MODE_META = {
   heat: { icon: "mdi:fire", label: "Heat", rgb: "255,152,0" },
@@ -63,6 +63,7 @@ class AcControlCard extends HTMLElement {
         :host { display: block; }
         ha-card {
           --rgb: ${MODE_META.off.rgb};
+          --icon-rgb: ${MODE_META.off.rgb};
           position: relative; overflow: hidden; box-sizing: border-box; padding: 12px;
           display: flex; flex-direction: column; gap: 12px;
           background: rgba(var(--rgb), .06);
@@ -92,8 +93,8 @@ class AcControlCard extends HTMLElement {
           flex: none; width: 65px; height: 65px; border-radius: 50%;
           margin: -18px -4px 0 -18px;
           display: flex; align-items: center; justify-content: center;
-          color: rgb(var(--rgb));
-          background: rgba(var(--rgb), 0.2);
+          color: rgb(var(--icon-rgb));
+          background: rgba(var(--icon-rgb), 0.2);
           transition: color .3s, background .3s;
         }
         .tile ha-icon { --mdc-icon-size: 44px; display: flex; }
@@ -149,19 +150,19 @@ class AcControlCard extends HTMLElement {
         .ind {
           position: absolute; top: 0; bottom: 0; left: 0; width: calc(100% / var(--n, 1));
           transform: translateX(calc(var(--i, 0) * 100%)); border-radius: 12px; pointer-events: none;
-          background: rgba(var(--rgb), .2); box-shadow: inset 0 0 0 1px rgba(var(--rgb), .4);
+          background: rgba(var(--icon-rgb), .2); box-shadow: inset 0 0 0 1px rgba(var(--icon-rgb), .4);
           transition: transform .3s cubic-bezier(.4, 0, .2, 1), background .3s, opacity .2s;
         }
         .mbtn {
-          all: unset; box-sizing: border-box; position: relative; z-index: 1; cursor: pointer; height: 40px;
+          all: unset; box-sizing: border-box; position: relative; z-index: 1; cursor: pointer; height: max(40px, calc(var(--mode-icon-size, 24px) + 16px));
           display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
-          color: var(--secondary-text-color); --mdc-icon-size: 24px; border-radius: 12px;
+          color: var(--secondary-text-color); --mdc-icon-size: var(--mode-icon-size, 24px); border-radius: 12px;
           transition: color .2s; -webkit-tap-highlight-color: transparent;
         }
         .mbtn span { font-size: 10.5px; font-weight: 600; line-height: 1; }
-        .mbtn.active { color: rgb(var(--rgb)); }
+        .mbtn.active { color: rgb(var(--icon-rgb)); }
         ha-card.kbd .mbtn:focus-visible { outline: 2px solid rgb(var(--rgb)); outline-offset: -2px; }
-        .labels .mbtn { height: 52px; }
+        .labels .mbtn { height: max(52px, calc(var(--mode-icon-size, 24px) + 28px)); }
 
         /* ---------- Bubble Card style ---------- */
         ha-card.bubble,
@@ -174,7 +175,7 @@ class AcControlCard extends HTMLElement {
         ha-card.bubble .head { gap: 12px; border-radius: 28px; }
         ha-card.bubble .tile {
           width: 40px; height: 40px; margin: 0 0 0 0;
-          background: rgba(var(--rgb), .2);
+          background: rgba(var(--icon-rgb), .2);
         }
         ha-card.bubble .tile ha-icon { --mdc-icon-size: 24px; }
         ha-card.bubble .track { border-radius: 24px; }
@@ -366,6 +367,7 @@ class AcControlCard extends HTMLElement {
       sub,
       tsub: tparts.join(" · "),
       rgb: cfg.coloring === false || isOff ? MODE_META.off.rgb : override || meta.rgb,
+      iconRgb: cfg.icon_coloring === false || isOff ? MODE_META.off.rgb : override || meta.rgb,
       isOff,
       active,
       mode,
@@ -389,7 +391,8 @@ class AcControlCard extends HTMLElement {
     const bubble = cfg.card_style === "bubble";
     const animate = cfg.animation !== false;
     const order = parseLayout(cfg.layout);
-    const key = JSON.stringify([m, modes, !!cfg.show_labels, showHeader, showModes, showTemp, bubble, animate, order]);
+    const modeIconSize = Math.min(Math.max(Number(cfg.mode_icon_size) || 24, 10), 48);
+    const key = JSON.stringify([m, modes, !!cfg.show_labels, showHeader, showModes, showTemp, bubble, animate, order, modeIconSize]);
     if (key === this._key) return;
     this._key = key;
 
@@ -415,6 +418,8 @@ class AcControlCard extends HTMLElement {
     }
 
     this._card.style.setProperty("--rgb", m.rgb);
+    this._card.style.setProperty("--icon-rgb", m.iconRgb);
+    this._card.style.setProperty("--mode-icon-size", `${modeIconSize}px`);
     this._card.classList.toggle("off", m.isOff);
     this._card.classList.toggle("active", m.active);
     this._tile.setAttribute("icon", m.icon);
@@ -538,7 +543,9 @@ const EDITOR_LABELS = {
   step: "Temperature step (default: entity step or 1)",
   color: "Accent color override (e.g. #2196f3)",
   animation: "Glow animation",
-  coloring: "Mode coloring",
+  coloring: "Card mode coloring",
+  icon_coloring: "Icon mode coloring",
+  mode_icon_size: "Mode icon size (px)",
 };
 
 // Values the card uses when a key is missing. The editor shows these and
@@ -553,6 +560,8 @@ const EDITOR_DEFAULTS = {
   layout: DEFAULT_LAYOUT,
   animation: true,
   coloring: true,
+  icon_coloring: true,
+  mode_icon_size: 24,
 };
 
 const getEditorSchema = (cfg) => {
@@ -591,11 +600,13 @@ const getEditorSchema = (cfg) => {
         },
         { name: "duration_entity", selector: { entity: { domain: ["sensor", "input_number"] } } },
         { name: "step", selector: { number: { min: 0.1, max: 5, step: 0.1, mode: "box" } } },
+        ...(showModes ? [{ name: "mode_icon_size", selector: { number: { min: 12, max: 40, step: 1, mode: "box", unit_of_measurement: "px" } } }] : []),
         { name: "color", selector: { text: {} } },
         { name: "show_current", selector: { boolean: {} } },
         ...(showModes ? [{ name: "show_labels", selector: { boolean: {} } }] : []),
         { name: "animation", selector: { boolean: {} } },
         { name: "coloring", selector: { boolean: {} } },
+        { name: "icon_coloring", selector: { boolean: {} } },
       ],
     },
   ];
