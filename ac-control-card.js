@@ -5,7 +5,7 @@
  */
 const TAG = "ac-control-card";
 const EDITOR_TAG = "ac-control-card-editor";
-const CARD_VERSION = "0.4.0-beta";
+const CARD_VERSION = "0.4.1-beta";
 
 const MODE_META = {
   heat: { icon: "mdi:fire", label: "Heat", rgb: "255,152,0" },
@@ -14,11 +14,9 @@ const MODE_META = {
   fan_only: { icon: "mdi:fan", label: "Fan", rgb: "0,150,136" },
   auto: { icon: "mdi:thermostat-auto", label: "Auto", rgb: "156,39,176" },
   heat_cool: { icon: "mdi:sun-snowflake-variant", label: "Heat/Cool", rgb: "156,39,176" },
-  off: { icon: "mdi:power", label: "Off", rgb: "111,111,111" },
+  off: { icon: "mdi:power", label: "Off", rgb: "142,142,147" },
 };
-// Header icon colour while the AC is off. Measured from the neighbouring
-// "off" cards (lamps ~75, Television / A1 Box ~86). Change it to taste.
-const OFF_ICON_RGB = "80,80,80";
+
 const ACTION_LABEL = {
   heating: "Heating", cooling: "Cooling", drying: "Drying", fan: "Fan", idle: "Idle",
   defrosting: "Defrosting", preheating: "Preheating", off: "Off",
@@ -64,7 +62,7 @@ class AcControlCard extends HTMLElement {
       <style>
         :host { display: block; }
         ha-card {
-          --rgb: 111,111,111;
+          --rgb: ${MODE_META.off.rgb};
           position: relative; overflow: hidden; box-sizing: border-box; padding: 12px;
           display: flex; flex-direction: column; gap: 12px;
           background: rgba(var(--rgb), .06);
@@ -94,7 +92,7 @@ class AcControlCard extends HTMLElement {
           flex: none; width: 65px; height: 65px; border-radius: 50%;
           margin: -18px -4px 0 -18px;
           display: flex; align-items: center; justify-content: center;
-          color: rgb(var(--icon-rgb, var(--rgb)));
+          color: rgb(var(--rgb));
           background: rgba(var(--rgb), 0.2);
           transition: color .3s, background .3s;
         }
@@ -183,14 +181,6 @@ class AcControlCard extends HTMLElement {
         ha-card.bubble .track { border-radius: 24px; }
         ha-card.bubble .ind { border-radius: 20px; }
         ha-card.bubble .mbtn { border-radius: 20px; }
-        
-        /* ---------- Mushroom style (formerly inset) ---------- */
-        ha-card.mushroom { padding: 14px 16px; gap: 14px; }
-        ha-card.mushroom.solo-temp { padding: 6px 10px; }
-        ha-card.mushroom .tile { margin: 0; }
-
-        /* ---------- Enhanced Mushroom style (formerly mushroom) ---------- */
-        /* (Inherits default ha-card negative margin tile positioning) */
       </style>
       <ha-card>
         <div class="head" tabindex="0" role="button">
@@ -377,7 +367,6 @@ class AcControlCard extends HTMLElement {
       sub,
       tsub: tparts.join(" · "),
       rgb: cfg.coloring === false || isOff ? MODE_META.off.rgb : override || meta.rgb,
-      iconRgb: isOff ? OFF_ICON_RGB : null,
       isOff,
       active,
       mode,
@@ -398,16 +387,15 @@ class AcControlCard extends HTMLElement {
     const showHeader = cfg.show_header !== false;
     const showModes = cfg.show_modes !== false;
     const showTemp = !!cfg.show_temperature_control;
-    const cardStyle = ["bubble", "mushroom"].includes(cfg.card_style) ? cfg.card_style : "enhanced";
+    const bubble = cfg.card_style === "bubble";
     const animate = cfg.animation !== false;
     const order = parseLayout(cfg.layout);
-    const key = JSON.stringify([m, modes, !!cfg.show_labels, showHeader, showModes, showTemp, cardStyle, animate, order]);
+    const key = JSON.stringify([m, modes, !!cfg.show_labels, showHeader, showModes, showTemp, bubble, animate, order]);
     if (key === this._key) return;
     this._key = key;
 
     // layout toggles
-    this._card.classList.toggle("bubble", cardStyle === "bubble");
-    this._card.classList.toggle("mushroom", cardStyle === "mushroom");
+    this._card.classList.toggle("bubble", bubble);
     this._card.classList.toggle("static", !animate);
     this._head.style.order = 0;
     this._temp.style.order = 1 + order.indexOf("temp");
@@ -428,8 +416,6 @@ class AcControlCard extends HTMLElement {
     }
 
     this._card.style.setProperty("--rgb", m.rgb);
-    if (m.iconRgb) this._card.style.setProperty("--icon-rgb", m.iconRgb);
-    else this._card.style.removeProperty("--icon-rgb");
     this._card.classList.toggle("off", m.isOff);
     this._card.classList.toggle("active", m.active);
     this._tile.setAttribute("icon", m.icon);
@@ -564,7 +550,7 @@ const EDITOR_DEFAULTS = {
   show_temperature_control: false,
   show_current: false,
   show_labels: false,
-  card_style: "enhanced",
+  card_style: "mushroom",
   layout: DEFAULT_LAYOUT,
   animation: true,
   coloring: true,
@@ -598,9 +584,8 @@ const getEditorSchema = (cfg) => {
             select: {
               mode: "dropdown",
               options: [
-                { value: "enhanced", label: "Mushroom-like Enhanced" },
-                { value: "mushroom", label: "Mushroom-like" },
-                { value: "bubble", label: "Bubble-like" },
+                { value: "mushroom", label: "Mushroom" },
+                { value: "bubble", label: "Bubble" },
               ],
             },
           },
