@@ -1,11 +1,12 @@
 /*
  * AC Control Card
  * Header, temperature stepper and mode selector in one card.
- * Each section can be toggled; styling can be Mushroom or Bubble.
+ * The header is pinned on top, Temperature and Modes can be shown, hidden and
+ * reordered. Styling can be Mushroom or Bubble.
  */
 const TAG = "ac-control-card";
 const EDITOR_TAG = "ac-control-card-editor";
-const CARD_VERSION = "0.4.5-beta";
+const CARD_VERSION = "0.5.0-beta";
 
 const MODE_META = {
   heat: { icon: "mdi:fire", label: "Heat", rgb: "255,152,0" },
@@ -25,17 +26,38 @@ const MODE_ORDER = ["heat", "cool", "heat_cool", "auto", "dry", "fan_only", "off
 const DEFAULT_MODES = ["heat", "cool", "off"];
 const UNAVAILABLE = ["unavailable", "unknown"];
 
-// The header is always first. Only Temperature and Modes can swap places
-// (the card is a flex column, sections are re-ordered with CSS `order`).
-const LAYOUT_OPTIONS = [
-  { value: "temp_modes", label: "Temperature → Modes" },
-  { value: "modes_temp", label: "Modes → Temperature" },
-];
-const DEFAULT_LAYOUT = "temp_modes";
-const parseLayout = (v) => {
-  const o = String(v ?? "").split("_").filter((x) => x === "temp" || x === "modes");
-  return o.length === 2 && o[0] === "modes" ? ["modes", "temp"] : ["temp", "modes"];
+// ---------- sections ----------
+// The header is pinned on top, it can only be shown or hidden. Temperature and
+// Modes can be shown, hidden and reordered (the card is a flex column, sections
+// are re-ordered with CSS `order`). `sections` in the config is an ordered list
+// of ids; hide one with `- id: modes` + `show: false`. Unlisted sections are hidden.
+const SECTION_IDS = ["header", "temperature", "modes"];
+const SECTION_META = {
+  header: { icon: "mdi:page-layout-header", label: "Header (icon, name, status, runtime)" },
+  temperature: { icon: "mdi:thermometer", label: "Temperature control (− / +)" },
+  modes: { icon: "mdi:tune-variant", label: "Mode buttons" },
 };
+const DEFAULT_SECTIONS = [
+  { id: "header", show: true },
+  { id: "temperature", show: false },
+  { id: "modes", show: true },
+];
+function effectiveSections(cfg) {
+  if (!Array.isArray(cfg.sections)) return DEFAULT_SECTIONS.map((x) => ({ ...x }));
+  const seen = new Set();
+  const listed = [];
+  cfg.sections.forEach((x) => {
+    const o = typeof x === "string" ? { id: x } : x;
+    if (!o || !SECTION_IDS.includes(o.id) || seen.has(o.id)) return;
+    seen.add(o.id);
+    listed.push({ id: o.id, show: o.show !== false });
+  });
+  SECTION_IDS.forEach((id) => { if (!seen.has(id)) listed.push({ id, show: false }); });
+  // the header always stays on top
+  return [listed.find((x) => x.id === "header"), ...listed.filter((x) => x.id !== "header")];
+}
+const resolveSections = (cfg) => effectiveSections(cfg).filter((x) => x.show).map((x) => x.id);
+
 const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const cap = (s) => String(s ?? "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
@@ -227,7 +249,7 @@ class AcControlCard extends HTMLElement {
     });
     // When the header is hidden, tapping the temperature opens more-info
     this._tcenter.addEventListener("click", () => {
-      if (this._config?.show_header === false) {
+      if (this._config && !resolveSections(this._config).includes("header")) {
         this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: this._config.entity }, bubbles: true, composed: true }));
       }
     });
@@ -262,9 +284,6 @@ class AcControlCard extends HTMLElement {
   setConfig(config) {
     if (!config || !config.entity) throw new Error("You need to define a climate entity");
     this._config = {
-      show_header: true,
-      show_modes: true,
-      show_temperature_control: false,
       tap_action: { action: "more-info" },
       ...config,
     };
@@ -279,12 +298,7 @@ class AcControlCard extends HTMLElement {
   }
 
   getCardSize() {
-    const c = this._config || {};
-    let n = 0;
-    if (c.show_header !== false) n += 1;
-    if (c.show_temperature_control) n += 1;
-    if (c.show_modes !== false) n += 1;
-    return Math.max(n, 1);
+    return Math.max(resolveSections(this._config || {}).length, 1);
   }
   getGridOptions() { return { columns: 12, min_columns: 3 }; }
 
@@ -386,23 +400,25 @@ class AcControlCard extends HTMLElement {
     const st = this._state();
     const m = this._model();
     const modes = st ? this._modes(st) : [];
-    const showHeader = cfg.show_header !== false;
-    const showModes = cfg.show_modes !== false;
-    const showTemp = !!cfg.show_temperature_control;
+    const sections = effectiveSections(cfg);
+    const vis = new Set(sections.filter((x) => x.show).map((x) => x.id));
+    const showHeader = vis.has("header");
+    const showModes = vis.has("modes");
+    const showTemp = vis.has("temperature");
     const bubble = cfg.card_style === "bubble";
     const animate = cfg.animation !== false;
-    const order = parseLayout(cfg.layout);
     const modeIconSize = Math.min(Math.max(Number(cfg.mode_icon_size) || 24, 10), 48);
-    const key = JSON.stringify([m, modes, !!cfg.show_labels, showHeader, showModes, showTemp, bubble, animate, order, modeIconSize]);
+    const key = JSON.stringify([m, modes, !!cfg.show_labels, sections, bubble, animate, modeIconSize]);
     if (key === this._key) return;
     this._key = key;
 
-    // layout toggles
+    // layout toggles (the header is always first)
+    const pos = (id) => sections.findIndex((x) => x.id === id);
     this._card.classList.toggle("bubble", bubble);
     this._card.classList.toggle("static", !animate);
     this._head.style.order = 0;
-    this._temp.style.order = 1 + order.indexOf("temp");
-    this._track.style.order = 1 + order.indexOf("modes");
+    this._temp.style.order = pos("temperature");
+    this._track.style.order = pos("modes");
     this._card.classList.toggle("solo-temp", !showHeader && !showModes && showTemp);
     this._head.hidden = !showHeader;
     this._temp.hidden = !showTemp;
@@ -531,11 +547,7 @@ const EDITOR_LABELS = {
   entity: "Climate entity",
   name: "Name",
   icon: "Icon",
-  show_header: "Show header (icon, name, status, runtime)",
-  show_temperature_control: "Show − / + temperature control",
-  show_modes: "Show mode buttons",
   hvac_modes: "Mode buttons",
-  layout: "Order of temperature and modes",
   show_current: "Show current temperature and state",
   show_labels: "Show labels under mode icons",
   tap_action: "Header tap action",
@@ -552,34 +564,33 @@ const EDITOR_LABELS = {
 // Values the card uses when a key is missing. The editor shows these and
 // never writes them into the YAML.
 const EDITOR_DEFAULTS = {
-  show_header: true,
-  show_modes: true,
-  show_temperature_control: false,
   show_current: false,
   show_labels: false,
   card_style: "mushroom",
-  layout: DEFAULT_LAYOUT,
   animation: true,
   coloring: true,
   icon_coloring: true,
   mode_icon_size: 24,
 };
 
-const getEditorSchema = (cfg) => {
-  const showHeader = cfg.show_header !== false;
-  const showModes = cfg.show_modes !== false;
-  const showTemp = !!cfg.show_temperature_control;
+const schemaNames = (schema) => schema.flatMap((s) => (s.schema ? schemaNames(s.schema) : s.name ? [s.name] : []));
+
+// Entity, name and icon (above the sections list)
+const getTopSchema = () => [
+  { name: "entity", required: true, selector: { entity: { domain: "climate" } } },
+  { name: "name", selector: { text: {} } },
+  { name: "icon", selector: { icon: {} } },
+];
+
+// Mode buttons, tap action and advanced (below the sections list)
+const getBottomSchema = (cfg) => {
+  const vis = resolveSections(cfg);
+  const showHeader = vis.includes("header");
+  const showModes = vis.includes("modes");
   return [
-    { name: "entity", required: true, selector: { entity: { domain: "climate" } } },
-    { name: "name", selector: { text: {} } },
-    { name: "icon", selector: { icon: {} } },
-    { name: "show_header", selector: { boolean: {} } },
-    { name: "show_temperature_control", selector: { boolean: {} } },
-    { name: "show_modes", selector: { boolean: {} } },
     ...(showModes
       ? [{ name: "hvac_modes", selector: { select: { multiple: true, mode: "list", options: MODE_OPTIONS } } }]
       : []),
-    ...(showTemp && showModes ? [{ name: "layout", selector: { select: { mode: "dropdown", options: LAYOUT_OPTIONS } } }] : []),
     ...(showHeader ? [{ name: "tap_action", selector: { ui_action: {} } }] : []),
     {
       type: "expandable",
@@ -613,6 +624,90 @@ const getEditorSchema = (cfg) => {
   ];
 };
 
+const EDITOR_CSS = `
+  .ac-list { margin: 16px 0; }
+  .ac-h { display: flex; align-items: center; font-size: 14px; font-weight: 500; color: var(--primary-text-color); margin-bottom: 8px; }
+  .ac-h span { flex: 1; }
+  .ac-reset { all: unset; cursor: pointer; font-size: 12px; color: var(--primary-color); }
+  .ac-row { border: 1px solid var(--divider-color); border-radius: 12px; margin-bottom: 8px; overflow: hidden; background: var(--card-background-color); }
+  .ac-rh { display: flex; align-items: center; gap: 4px; padding: 6px 4px 6px 12px; }
+  .ac-rh > ha-icon { --mdc-icon-size: 22px; margin-right: 8px; color: var(--secondary-text-color); }
+  .ac-rh .t { flex: 1; min-width: 0; }
+  .ac-rh .n { font-size: 14px; color: var(--primary-text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ac-rh .s { font-size: 12px; color: var(--secondary-text-color); }
+  .ac-ib { all: unset; box-sizing: border-box; cursor: pointer; width: 32px; height: 32px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--secondary-text-color); --mdc-icon-size: 20px; }
+  .ac-ib:hover { background: var(--secondary-background-color); color: var(--primary-text-color); }
+  .ac-ib[disabled] { opacity: .3; pointer-events: none; }
+  .ac-pin { width: 68px; height: 32px; flex: none; display: flex; align-items: center; justify-content: center; color: var(--secondary-text-color); --mdc-icon-size: 18px; }
+  .ac-tgl { all: unset; box-sizing: border-box; cursor: pointer; flex: none; position: relative; width: 38px; height: 22px; border-radius: 11px; margin: 0 8px 0 4px; background: var(--disabled-color, #bdbdbd); transition: background .2s; }
+  .ac-tgl::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  .ac-tgl.on { background: var(--primary-color); }
+  .ac-tgl.on::after { transform: translateX(16px); }
+  .ac-row.hidden-sec .t, .ac-row.hidden-sec > .ac-rh > ha-icon { opacity: .55; }
+`;
+
+// Rows to show / hide and reorder the card's sections. The header is pinned on top.
+class SectionsEditor {
+  constructor(host, commit) {
+    this.commit = commit;
+    this.wrap = document.createElement("div");
+    this.wrap.className = "ac-list";
+    host.appendChild(this.wrap);
+  }
+
+  update(list, custom) {
+    const wrap = this.wrap;
+    wrap.innerHTML = "";
+    const head = document.createElement("div");
+    head.className = "ac-h";
+    const t = document.createElement("span");
+    t.textContent = "Sections";
+    head.appendChild(t);
+    if (custom) {
+      const reset = document.createElement("button");
+      reset.className = "ac-reset";
+      reset.textContent = "Reset to default";
+      reset.addEventListener("click", () => this.commit(null));
+      head.appendChild(reset);
+    }
+    wrap.appendChild(head);
+    list.forEach((it, i) => {
+      const meta = SECTION_META[it.id];
+      const pinned = it.id === "header";
+      const row = document.createElement("div");
+      row.className = "ac-row" + (it.show ? "" : " hidden-sec");
+      const rh = document.createElement("div");
+      rh.className = "ac-rh";
+      rh.innerHTML = `
+        <ha-icon icon="${meta.icon}"></ha-icon>
+        <div class="t"><div class="n"></div><div class="s"></div></div>
+        ${
+          pinned
+            ? `<span class="ac-pin" title="The header always stays on top"><ha-icon icon="mdi:pin-outline"></ha-icon></span>`
+            : `<button class="ac-ib" data-a="up" title="Move up" ${i <= 1 ? "disabled" : ""}><ha-icon icon="mdi:arrow-up"></ha-icon></button>
+               <button class="ac-ib" data-a="down" title="Move down" ${i === list.length - 1 ? "disabled" : ""}><ha-icon icon="mdi:arrow-down"></ha-icon></button>`
+        }
+        <button class="ac-tgl${it.show ? " on" : ""}" data-a="tgl" role="switch" aria-checked="${it.show}" title="${it.show ? "Hide" : "Show"}"></button>`;
+      rh.querySelector(".n").textContent = meta.label;
+      rh.querySelector(".s").textContent = pinned ? (it.show ? "Shown, always on top" : "Hidden") : it.show ? "Shown" : "Hidden";
+      rh.addEventListener("click", (e) => {
+        const a = e.target.closest("[data-a]")?.dataset.a;
+        if (!a) return;
+        const cur = list.map((x) => ({ ...x }));
+        if (a === "tgl") cur[i].show = !cur[i].show;
+        else {
+          const j = a === "up" ? i - 1 : i + 1;
+          if (j < 1 || j >= cur.length) return; // never above the header
+          [cur[i], cur[j]] = [cur[j], cur[i]];
+        }
+        this.commit(cur);
+      });
+      row.appendChild(rh);
+      wrap.appendChild(row);
+    });
+  }
+}
+
 // The editor merges the card's defaults into the form data so toggles that
 // default to "on" are shown as on, and the default modes are pre-selected.
 class AcControlCardEditor extends HTMLElement {
@@ -623,43 +718,86 @@ class AcControlCardEditor extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
-    if (this._form) this._form.hass = hass;
-    else this._sync();
+    if (this._built) {
+      this._top.hass = hass;
+      this._bottom.hass = hass;
+    } else this._sync();
+  }
+
+  _emit(config) {
+    const c = { ...config };
+    // don't write default values into the YAML
+    for (const [k, v] of Object.entries(EDITOR_DEFAULTS)) if (c[k] === v) delete c[k];
+    if (!Array.isArray(c.hvac_modes) || c.hvac_modes.length === 0 || c.hvac_modes.join(",") === DEFAULT_MODES.join(",")) {
+      delete c.hvac_modes;
+    }
+    for (const k of Object.keys(c)) {
+      const v = c[k];
+      if (v === "" || v == null) delete c[k];
+    }
+    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: c }, bubbles: true, composed: true }));
+  }
+
+  _makeForm(schema, onChange) {
+    const f = document.createElement("ha-form");
+    f.computeLabel = (s) => EDITOR_LABELS[s.name] || s.name;
+    f.addEventListener("value-changed", (ev) => { ev.stopPropagation(); onChange(ev.detail.value); });
+    f.hass = this._hass;
+    f.schema = schema;
+    return f;
+  }
+
+  _build() {
+    this._built = true;
+    const style = document.createElement("style");
+    style.textContent = EDITOR_CSS;
+    this.appendChild(style);
+
+    // each form only writes the keys it owns
+    const onFormChange = (getSchema) => (value) => {
+      const config = { ...this._config };
+      for (const n of schemaNames(getSchema())) {
+        if (value[n] === undefined) delete config[n];
+        else config[n] = value[n];
+      }
+      this._emit(config);
+    };
+    this._top = this._makeForm(getTopSchema(), onFormChange(() => getTopSchema()));
+    this.appendChild(this._top);
+
+    this._sections = new SectionsEditor(this, (list) => {
+      const c = { ...this._config };
+      const written = list === null ? null : list.map((x) => (x.show ? x.id : { id: x.id, show: false }));
+      // the default arrangement is not written into the YAML
+      const isDefault = written && JSON.stringify(list) === JSON.stringify(DEFAULT_SECTIONS);
+      if (written === null || isDefault) delete c.sections;
+      else c.sections = written;
+      this._emit(c);
+    });
+
+    this._bottom = this._makeForm([], onFormChange(() => getBottomSchema(this._config)));
+    this.appendChild(this._bottom);
   }
 
   _sync() {
     if (!this._config || !this._hass) return;
-    if (!this._form) {
-      this._form = document.createElement("ha-form");
-      this._form.computeLabel = (s) => EDITOR_LABELS[s.name] || s.name;
-      this._form.addEventListener("value-changed", (ev) => {
-        ev.stopPropagation();
-        const config = { ...this._config, ...ev.detail.value };
-        // don't write default values into the YAML
-        for (const [k, v] of Object.entries(EDITOR_DEFAULTS)) if (config[k] === v) delete config[k];
-        if (!Array.isArray(config.hvac_modes) || config.hvac_modes.length === 0 || config.hvac_modes.join(",") === DEFAULT_MODES.join(",")) {
-          delete config.hvac_modes;
-        }
-        for (const k of Object.keys(config)) {
-          const v = config[k];
-          if (v === "" || v == null) delete config[k];
-        }
-        this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
-      });
-      this.appendChild(this._form);
-    }
-    this._form.hass = this._hass;
+    if (!this._built) this._build();
+    this._top.hass = this._bottom.hass = this._hass;
 
     const cfg = this._config;
-    const schemaKey = JSON.stringify([cfg.show_header !== false, cfg.show_modes !== false, !!cfg.show_temperature_control]);
-    if (schemaKey !== this._schemaKey) {
-      this._schemaKey = schemaKey;
-      this._form.schema = getEditorSchema(cfg);
-    }
-
     const data = { ...EDITOR_DEFAULTS, ...cfg };
     if (!Array.isArray(data.hvac_modes) || data.hvac_modes.length === 0) data.hvac_modes = [...DEFAULT_MODES];
-    this._form.data = data;
+    this._top.data = data;
+
+    const vis = resolveSections(cfg);
+    const schemaKey = JSON.stringify([vis.includes("header"), vis.includes("modes")]);
+    if (schemaKey !== this._schemaKey) {
+      this._schemaKey = schemaKey;
+      this._bottom.schema = getBottomSchema(cfg);
+    }
+    this._bottom.data = data;
+
+    this._sections.update(effectiveSections(cfg), Array.isArray(cfg.sections));
   }
 }
 
