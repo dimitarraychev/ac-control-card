@@ -6,7 +6,7 @@
  */
 const TAG = "ac-control-card";
 const EDITOR_TAG = "ac-control-card-editor";
-const CARD_VERSION = "0.5.0-beta";
+const CARD_VERSION = "0.5.1-beta";
 
 const MODE_META = {
   heat: { icon: "mdi:fire", label: "Heat", rgb: "255,152,0" },
@@ -118,10 +118,12 @@ class AcControlCard extends HTMLElement {
           display: flex; align-items: center; justify-content: center;
           color: rgb(var(--icon-rgb));
           background: rgba(var(--icon-rgb), 0.2);
-          transition: color .3s, background .3s;
+          transition: color .3s, background .3s, opacity .3s;
         }
         .tile ha-icon { --mdc-icon-size: 44px; display: flex; }
-
+        
+        ha-card.off .tile { opacity: .5; }
+        
         .info { flex: 1; min-width: 0; }
         .name {
           font-size: 14px; font-weight: 500; line-height: 1.5;
